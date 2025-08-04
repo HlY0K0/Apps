@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TangentMap Creator</title>
+    <!-- Tailwind CSS CDNを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Interフォントを適用 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* 背景色を少しグレーに */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        canvas {
+            border: 2px solid #cbd5e0; /* キャンバスの境界線 */
+            background-color: #ffffff; /* キャンバスの背景色 */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* 影を追加 */
+            /* ここを固定サイズに変更 */
+            width: 512px;
+            height: 512px;
+            max-width: 100%; /* 小さい画面でもはみ出さないように */
+            max-height: calc(100vh - 200px); /* 画面高さを考慮（適宜調整） */
+            display: block; /* 中央配置のためにブロック要素に */
+            margin: 0 auto; /* 中央配置 */
+            cursor: grab; /* マウスカーソルをドラッグ用に変更 */
+            touch-action: none; /* タッチ操作によるブラウザのデフォルト動作を無効化 */
+        }
+        canvas.dragging {
+            cursor: grabbing; /* ドラッグ中はカーソルをgrabbingに変更 */
+        }
+        /* カスタムメッセージボックスのスタイル */
+        .custom-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .custom-modal-content {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        .custom-modal-content button {
+            background-color: #4f46e5;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background-color 0.2s;
+        }
+        .custom-modal-content button:hover {
+            background-color: #4338ca;
+        }
+        .custom-modal-content .flex button {
+            flex: 1; /* ボタンを均等な幅にする */
+            margin: 0 0.5rem; /* ボタン間のスペース */
+        }
+
+
+        /* 無効化されたスライダーのスタイル */
+        .disabled-slider-container {
+            opacity: 0.5;
+            pointer-events: none; /* クリックイベントを無効化 */
+        }
+
+        /* タブ関連のスタイル */
+        .tabs {
+            display: flex;
+            width: 100%;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 1rem;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            border-top-left-radius: 0.5rem;
+            border-top-right-radius: 0.5rem;
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 500;
+            transition: all 0.2s ease-in-out;
+            border: 1px solid #e2e8f0;
+            border-bottom: none;
+            margin-bottom: -1px; /* border-bottomを隠すため */
+        }
+        .tab-button:hover {
+            background-color: #eff6ff;
+            color: #2563eb;
+        }
+        .tab-button.active {
+            background-color: #ffffff;
+            color: #1d4ed8;
+            font-weight: 600;
+            border-color: #e2e8f0;
+            border-bottom-color: #ffffff; /* アクティブなタブの下線を消す */
+        }
+        .tab-content {
+            display: none;
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 0.5rem 0.5rem;
+            background-color: #ffffff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* スライダーコントロールボタンのスタイル */
+        .control-button {
+            background-color: #e2e8f0; /* Light gray */
+            color: #475569; /* Darker gray text */
+            border: none;
+            border-radius: 9999px; /* Fully rounded */
+            width: 2rem; /* 32px */
+            height: 2rem; /* 32px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem; /* text-xl */
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            flex-shrink: 0; /* 縮小させない */
+        }
+        .control-button:hover {
+            background-color: #cbd5e0; /* Slightly darker on hover */
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+
+    <!-- 新しく追加されたヘッダー -->
+    <header class="w-full bg-white shadow-md p-4 mb-4 flex justify-between items-center fixed top-0 left-0 z-50">
+		<nav class="container mx-auto flex justify-between items-center">
+		  <a href="https://hly0k0.github.io/Apps/index.html" class="text-blue-600 hover:text-blue-800 font-semibold transition-colors duration-200">
+			<h1 class="text-2xl font-bold text-blue-600">HIYOKO's Apps</h1>
+		  </a>
+        </nav>
+    </header>
+
+    <!-- コンテンツ全体をラップするコンテナを追加し、ヘッダーの高さ分オフセット -->
+    <div class="pt-20 pb-4">
+
+		<!-- 親の最大幅を調整し、キャンバスがより大きなサイズを取れるように変更 -->
+		<div class="bg-white p-6 rounded-xl shadow-lg flex flex-col items-center space-y-6 w-[720px]">
+			<h1 class="text-3xl font-bold text-gray-800 mb-4">TangentMap Creator</h1>
+
+			<!-- キャンバスサイズ選択と初期化ボタン -->
+			<div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+				<label for="canvasSize" class="text-lg font-medium text-gray-700 whitespace-nowrap">キャンバスサイズ:</label>
+				<select id="canvasSize" class="flex-grow p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-700 bg-white transition duration-200 ease-in-out hover:border-gray-400">
+					<option value="128">128x128</option>
+					<option value="256">256x256</option>
+					<option value="512">512x512</option>
+					<option value="1024" selected>1024x1024</option>
+					<option value="2048">2048x2048</option>
+				</select>
+				<button id="initializeCanvasButton" class="py-3 px-6 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition duration-200 ease-in-out whitespace-nowrap">
+					キャンバスを初期化
+				</button>
+			</div>
+
+			<!-- 画像選択と補間方法選択 -->
+			<div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+				<label for="imageInput" class="text-xl font-bold text-gray-800 whitespace-nowrap">スタンプ画像選択:</label>
+				<input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-gray-500
+					file:mr-4 file:py-2 file:px-4
+					file:rounded-full file:border-0
+					file:text-sm file:font-semibold
+					file:bg-blue-50 file:text-blue-700
+					hover:file:bg-blue-100
+					cursor:pointer transition duration-200 ease-in-out
+				">
+				<label for="interpolationMethodSelect" class="text-lg font-medium text-gray-700 whitespace-nowrap">補間方法:</label>
+				<select id="interpolationMethodSelect" class="flex-grow p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-700 bg-white transition duration-200 ease-in-out hover:border-gray-400">
+					<option value="linear" selected>線形補間</option>
+					<option value="nearest-neighbor">最近傍法</option>
+				</select>
+			</div>
+
+			<!-- タブコンテナ -->
+			<div class="w-full">
+				<div class="tabs">
+					<div class="tab-button active" data-tab="scale">倍率設定</div>
+					<div class="tab-button" data-tab="rotation">回転設定</div>
+					<div class="tab-button" data-tab="brightness">カラー設定</div>
+				</div>
+
+				<!-- タブコンテンツ -->
+				<div id="scale-tab-content" class="tab-content active space-y-4">
+					<h2 class="text-xl font-semibold text-gray-700 mb-2">スタンプ描画倍率設定</h2>
+					<!-- ランダム倍率チェックボックス -->
+					<div class="flex items-center space-x-2 w-full">
+						<input type="checkbox" id="randomScaleToggle" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500" checked >
+						<label for="randomScaleToggle" class="text-lg font-medium text-gray-700">ランダム倍率</label>
+					</div>
+
+					<!-- 最小倍率スライダー -->
+					<div id="minRandomScaleContainer" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+						<label for="minRandomScaleInput" class="text-lg font-medium text-gray-700 whitespace-nowrap">最小ランダム倍率 (0.01～1.0):</label>
+						<button class="control-button" data-target="minRandomScaleInput" data-action="decrement">-</button>
+						<input type="range" id="minRandomScaleInput" min="0.01" max="1.0" step="0.01" value="0.33"
+							   class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 transition duration-200 ease-in-out">
+						<button class="control-button" data-target="minRandomScaleInput" data-action="increment">+</button>
+						<span id="minRandomScaleValue" class="text-gray-700 font-medium w-12 text-right">0.33</span>
+					</div>
+
+					<!-- 最大倍率スライダー -->
+					<div id="maxRandomScaleContainer" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+						<label for="maxRandomScaleInput" class="text-lg font-medium text-gray-700 whitespace-nowrap">最大ランダム倍率 (0.01～1.0):</label>
+						<button class="control-button" data-target="maxRandomScaleInput" data-action="decrement">-</button>
+						<input type="range" id="maxRandomScaleInput" min="0.01" max="1.0" step="0.01" value="0.67"
+							   class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 transition duration-200 ease-in-out">
+						<button class="control-button" data-target="maxRandomScaleInput" data-action="increment">+</button>
+						<span id="maxRandomScaleValue" class="text-gray-700 font-medium w-12 text-right">0.67</span>
+					</div>
+
+					<!-- 画像描画サイズ設定 (スライダー) -->
+					<div id="imageScaleContainer" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+						<label for="imageScale" class="text-lg font-medium text-gray-700 whitespace-nowrap">描画倍率 (0.01～1.0):</label>
+						<button class="control-button" data-target="imageScale" data-action="decrement">-</button>
+						<input type="range" id="imageScale" min="0.01" max="1.0" step="0.01" value="0.5"
+							   class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 transition duration-200 ease-in-out">
+						<button class="control-button" data-target="imageScale" data-action="increment">+</button>
+						<span id="imageScaleValue" class="text-gray-700 font-medium w-12 text-right">0.50</span>
+					</div>
+				</div>
+
+				<div id="rotation-tab-content" class="tab-content space-y-4">
+					<h2 class="text-xl font-semibold text-gray-700 mb-2">回転設定</h2>
+					<!-- ランダム回転チェックボックス -->
+					<div class="flex items-center space-x-2 w-full">
+						<input type="checkbox" id="randomRotationToggle" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500" checked >
+						<label for="randomRotationToggle" class="text-lg font-medium text-gray-700">ランダム回転</label>
+					</div>
+
+					<!-- 画像回転角度設定 (スライダー) -->
+					<div id="imageRotationContainer" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+						<label for="imageRotation" class="text-lg font-medium text-gray-700 whitespace-nowrap">回転角度 (-180～180°):</label>
+						<button class="control-button" data-target="imageRotation" data-action="decrement">-</button>
+						<input type="range" id="imageRotation" min="-180" max="180" step="1" value="0"
+							   class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 transition duration-200 ease-in-out">
+						<button class="control-button" data-target="imageRotation" data-action="increment">+</button>
+						<span id="imageRotationValue" class="text-gray-700 font-medium w-12 text-right">0°</span>
+					</div>
+				</div>
+
+				<div id="brightness-tab-content" class="tab-content space-y-4">
+					<h2 class="text-xl font-semibold text-gray-700 mb-2">カラー設定</h2>
+					<!-- ランダム輝度加算チェックボックス -->
+					<div class="flex items-center space-x-2 w-full">
+						<input type="checkbox" id="randomBrightnessToggle" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500" checked >
+						<label for="randomBrightnessToggle" class="text-lg font-medium text-gray-700">ランダムカラー</label>
+					</div>
+
+					<!-- 輝度調整スライダー -->
+					<div id="brightnessContainer" class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
+						<label for="brightnessInput" class="text-lg font-medium text-gray-700 whitespace-nowrap">カラー調整 (0～255):</label>
+						<button class="control-button" data-target="brightnessInput" data-action="decrement">-</button>
+						<input type="range" id="brightnessInput" min="0" max="255" step="1" value="127"
+							   class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 transition duration-200 ease-in-out">
+						<button class="control-button" data-target="brightnessInput" data-action="increment">+</button>
+						<span id="brightnessValue" class="text-gray-700 font-medium w-12 text-right">127</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- アンドゥ/リドゥ、ランダム配置、保存ボタンのグループ -->
+			<div class="flex flex-wrap justify-center gap-4 w-full mt-4">
+				<button id="undoButton" class="flex-1 py-3 px-6 bg-yellow-500 text-white font-semibold rounded-lg shadow-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+					元に戻す
+				</button>
+				<button id="redoButton" class="flex-1 py-3 px-6 bg-orange-500 text-white font-semibold rounded-lg shadow-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+					やり直す
+				</button>
+				<button id="randomPlaceButton" class="flex-1 py-3 px-6 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+					ランダム配置
+				</button>
+				<button id="placeCenterButton" class="flex-1 py-3 px-6 bg-purple-500 text-white font-semibold rounded-lg shadow-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+					中央に配置
+				</button>
+				<button id="saveImageButton" class="flex-1 py-3 px-6 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+					画像を保存
+				</button>
+			</div>
+
+			<!-- キャンバス要素 -->
+			<canvas id="imageCanvas" class="mt-6"></canvas>
+
+			<!-- キャンバスの下のメッセージ -->
+			<p class="text-center text-gray-600 mt-4">画面を押すとスタンプが押せます。</p>
+		</div>
+
+		<script>
+			// DOM要素を取得
+			const canvas = document.getElementById('imageCanvas');
+			const ctx = canvas.getContext('2d');
+			const canvasSizeSelect = document.getElementById('canvasSize');
+			const imageScaleContainer = document.getElementById('imageScaleContainer');
+			const imageScaleInput = document.getElementById('imageScale');
+			const imageScaleValueDisplay = document.getElementById('imageScaleValue');
+			const imageRotationContainer = document.getElementById('imageRotationContainer');
+			const imageRotationInput = document.getElementById('imageRotation');
+			const imageRotationValueDisplay = document.getElementById('imageRotationValue');
+			const randomBrightnessToggle = document.getElementById('randomBrightnessToggle');
+			const brightnessContainer = document.getElementById('brightnessContainer');
+			const brightnessInput = document.getElementById('brightnessInput');
+			const brightnessValueDisplay = document.getElementById('brightnessValue');
+			const randomRotationToggle = document.getElementById('randomRotationToggle');
+			const randomScaleToggle = document.getElementById('randomScaleToggle');
+			const minRandomScaleContainer = document.getElementById('minRandomScaleContainer');
+			const minRandomScaleInput = document.getElementById('minRandomScaleInput');
+			const minRandomScaleValueDisplay = document.getElementById('minRandomScaleValue');
+			const maxRandomScaleContainer = document.getElementById('maxRandomScaleContainer');
+			const maxRandomScaleInput = document.getElementById('maxRandomScaleInput');
+			const maxRandomScaleValueDisplay = document.getElementById('maxRandomScaleValue');
+			const interpolationMethodSelect = document.getElementById('interpolationMethodSelect');
+			const imageInput = document.getElementById('imageInput');
+			const randomPlaceButton = document.getElementById('randomPlaceButton');
+			const placeCenterButton = document.getElementById('placeCenterButton');
+			const saveImageButton = document.getElementById('saveImageButton');
+			const initializeCanvasButton = document.getElementById('initializeCanvasButton');
+			const undoButton = document.getElementById('undoButton');
+			const redoButton = document.getElementById('redoButton');
+
+			// タブ関連のDOM要素
+			const tabButtons = document.querySelectorAll('.tab-button');
+			const tabContents = document.querySelectorAll('.tab-content');
+			const controlButtons = document.querySelectorAll('.control-button');
+
+			let currentImage = null; // 現在読み込まれている、ドラッグ中の元の画像 (加工前)
+			let tempProcessingCanvas = document.createElement('canvas'); // 加工用の一時キャンバス
+			let tempProcessingCtx = tempProcessingCanvas.getContext('2d'); // 一時キャンバスのコンテキスト
+
+			let drawnImageWidth = 0; // currentImageがキャンバスに描画される際の幅 (回転後のバウンディングボックスの幅)
+			let drawnImageHeight = 0; // currentImageがキャンバスに描画される際の高さ (回転後のバウンディングボックスの高さ)
+			let imageScale = parseFloat(imageScaleInput.value); // 描画倍率の初期値 (スライダーの値)
+			let imageRotation = parseFloat(imageRotationInput.value); // 回転角度の初期値 (度)
+			let brightnessValue = parseInt(brightnessInput.value); // 輝度調整の初期値
+
+			let isDragging = false; // ドラッグ中かどうかを示すフラグ
+			let dragStartX = 0; // ドラッグ開始時の画像中心のX, Y座標（キャンバス内）
+			let dragStartY = 0;
+
+			let currentRandomBrightnessValue = 0; // 現在のドラッグ操作に適用されるランダム輝度値
+			let currentRandomRotationValue = 0; // 現在のドラッグ操作に適用されるランダム回転値（度）
+			let currentRandomScaleValue = 0; // 現在のドラッグ操作に適用されるランダム倍率
+
+			let minRandomScale = parseFloat(minRandomScaleInput.value); // 最小ランダム倍率の初期値
+			let maxRandomScale = parseFloat(maxRandomScaleInput.value); // 最大ランダム倍率の初期値
+
+			// キャンバスに確定された画像の配列
+			let placedImages = []; // 各要素: { img: Image, x: number, y: number, width: number, height: number }
+
+			// アンドゥ/リドゥ用のスタック
+			const undoStack = [];
+			const redoStack = [];
+			const maxStackSize = 20; // スタックの最大サイズ
+
+			// カスタムメッセージボックスを表示する関数
+			function showMessage(message) {
+				const modalHtml = `
+					<div class="custom-modal" id="customModal">
+						<div class="custom-modal-content">
+							<p class="text-lg text-gray-800">${message}</p>
+							<button onclick="document.getElementById('customModal').remove()">OK</button>
+						</div>
+					</div>
+				`;
+				document.body.insertAdjacentHTML('beforeend', modalHtml);
+			}
+
+			// カスタム確認モーダルを表示する関数
+			function showConfirm(message, onConfirm, onCancel) {
+				const modalHtml = `
+					<div class="custom-modal" id="customConfirmModal">
+						<div class="custom-modal-content">
+							<p class="text-lg text-gray-800 mb-4">${message}</p>
+							<div class="flex justify-center space-x-4">
+								<button id="confirmOkBtn" class="py-2 px-4 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition duration-200 ease-in-out">OK</button>
+								<button id="confirmCancelBtn" class="py-2 px-4 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition duration-200 ease-in-out">キャンセル</button>
+							</div>
+						</div>
+					</div>
+				`;
+				document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+				const modal = document.getElementById('customConfirmModal');
+				document.getElementById('confirmOkBtn').onclick = () => {
+					modal.remove();
+					if (onConfirm) onConfirm();
+				};
+				document.getElementById('confirmCancelBtn').onclick = () => {
+					modal.remove();
+					if (onCancel) onCancel();
+				};
+			}
+
+			// キャンバスの背景を初期化する関数
+			function initializeCanvasBackground() {
+				ctx.fillStyle = 'rgb(255, 128, 128)'; // R:1.0, G:0.5, B:0.5 の色
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+			}
+
+			// キャンバスのサイズを設定する関数
+			function setCanvasSize(size) {
+				canvas.width = size;
+				canvas.height = size;
+				renderCanvas(); // キャンバスをクリアした状態で再描画
+			}
+
+			// 画像をキャンバスに描画するヘルパー関数（はみ出した分を逆サイドに描画）
+			function drawWrappingImage(image, x, y, width, height) {
+				const cw = canvas.width;
+				const ch = canvas.height;
+
+				// 画像の描画範囲を正規化（0 <= x < cw, 0 <= y < ch）
+				// これにより、画像の座標が負の値やキャンバスサイズを超える場合でも、
+				// 常にキャンバス内に収まるように調整される
+				const normalizedX = (x % cw + cw) % cw;
+				const normalizedY = (y % ch + ch) % ch;
+
+				// 3x3のグリッドで画像を配置し、キャンバス内に表示される部分のみを描画
+				for (let i = -1; i <= 1; i++) {
+					for (let j = -1; j <= 1; j++) {
+						const drawX = normalizedX + i * cw;
+						const drawY = normalizedY + j * ch;
+
+						// 画像の描画範囲がキャンバスと交差する場合のみ描画
+						if (drawX < cw && drawX + width > 0 && drawY < ch && drawY + height > 0) {
+							ctx.drawImage(image, drawX, drawY, width, height);
+						}
+					}
+				}
+			}
+
+			// 画像をキャンバスに描画する関数
+			// tempImageX, tempImageY はドラッグ中の仮表示に使用される一時的な座標
+			function renderCanvas(tempImageX = null, tempImageY = null) {
+				ctx.clearRect(0, 0, canvas.width, canvas.height); // キャンバス全体をクリア
+				initializeCanvasBackground(); // 背景色を再描画
+				updateInterpolationMethodStates(); // メインキャンバスの補間方法を更新
+
+				// 確定済みの画像をすべて描画
+				for (const imgObj of placedImages) {
+					drawWrappingImage(imgObj.img, imgObj.x, imgObj.y, imgObj.width, imgObj.height);
+				}
+
+				// 現在操作中の画像があり、かつドラッグ中であれば、一時キャンバスの内容を仮の座標で描画
+				if (currentImage && isDragging && tempImageX !== null && tempImageY !== null) {
+					drawWrappingImage(tempProcessingCanvas, tempImageX, tempImageY, drawnImageWidth, drawnImageHeight);
+				}
+			}
+
+			// マウス/タッチイベントのキャンバス内座標を取得し、CSSスケールを補正する関数
+			function getCanvasCoordinates(event) {
+				const rect = canvas.getBoundingClientRect(); // キャンバスのDOM上の表示サイズと位置を取得
+				let clientX, clientY;
+				let touch = null;
+
+				// touchstart, touchmove の場合は event.touches を使用
+				if (event.touches && event.touches.length > 0) {
+					touch = event.touches[0];
+				}
+				// touchend の場合は event.changedTouches を使用
+				else if (event.changedTouches && event.changedTouches.length > 0) {
+					touch = event.changedTouches[0];
+				}
+
+				if (touch) {
+					clientX = touch.clientX;
+					clientY = touch.clientY;
+				} else {
+					// マウスイベントの場合
+					clientX = event.clientX;
+					clientY = event.clientY;
+				}
+
+				// キャンバス内のクリック/タップ座標を計算し、描画サイズに合わせてスケーリング
+				// CSSによる引き伸ばしがある場合、このスケーリングで補正します。
+				const scaleX = canvas.width / rect.width;
+				const scaleY = canvas.height / rect.height;
+
+				const x = (clientX - rect.left) * scaleX;
+				const y = (clientY - rect.top) * scaleY;
+				return { x, y };
+			}
+
+			/**
+			 * 画像加工処理をまとめた関数
+			 * @param {Image} image - 元の画像
+			 * @param {number} scaledWidth - メインキャンバスに描画したい最終的な幅 (回転前のスケール適用後)
+			 * @param {number} scaledHeight - メインキャンバスに描画したい最終的な高さ (回転前のスケール適用後)
+			 * @param {number} rotationDegrees - 回転角度 (度)
+			 * @param {number} brightnessAdjustment - 輝度調整値 (ランダムまたはスライダー値)
+			 * @returns {{processedCanvas: HTMLCanvasElement, finalWidth: number, finalHeight: number}} 加工済みの一時キャンバスと、回転後のバウンディングボックスサイズ
+			 */
+			function getProcessedImageAndDimensions(image, scaledWidth, scaledHeight, rotationDegrees, brightnessAdjustment) {
+				const radians = rotationDegrees * Math.PI / 180;
+				const absCos = Math.abs(Math.cos(radians));
+				const absSin = Math.abs(Math.sin(radians));
+
+				// 回転後の画像のバウンディングボックスのサイズを計算
+				const rotatedBoundingWidth = scaledWidth * absCos + scaledHeight * absSin;
+				const rotatedBoundingHeight = scaledWidth * absSin + scaledHeight * absCos;
+
+				// 一時キャンバスのサイズを、回転後のバウンディングボックスに合わせる
+				tempProcessingCanvas.width = rotatedBoundingWidth;
+				tempProcessingCanvas.height = rotatedBoundingHeight;
+				tempProcessingCtx.clearRect(0, 0, tempProcessingCanvas.width, tempProcessingCanvas.height); // クリア
+				tempProcessingCtx.save(); // 現在の変換行列を保存
+
+				updateInterpolationMethodStates(); // 一時キャンバスの補間方法を更新
+
+				// 元の画像を新しい一時キャンバスの中央に配置するためのオフセット
+				const offsetX = (rotatedBoundingWidth - scaledWidth) / 2;
+				const offsetY = (rotatedBoundingHeight - scaledHeight) / 2;
+
+				// 回転の中心を新しい一時キャンバスの中央に設定
+				const rotationCenterX = rotatedBoundingWidth / 2;
+				const rotationCenterY = rotatedBoundingHeight / 2;
+				
+				tempProcessingCtx.translate(rotationCenterX, rotationCenterY);
+				tempProcessingCtx.rotate(radians); // ラジアンに変換済み
+				// drawImageの基準点を画像の中心に合わせるために逆変換
+				tempProcessingCtx.translate(-scaledWidth / 2, -scaledHeight / 2);
+
+				// 元の画像を一時キャンバスに、指定された最終描画サイズで描画
+				tempProcessingCtx.drawImage(image, 0, 0, scaledWidth, scaledHeight);
+
+				const imageData = tempProcessingCtx.getImageData(0, 0, tempProcessingCanvas.width, tempProcessingCanvas.height);
+				const data = imageData.data;
+
+				// グレースケール変換
+				for (let i = 0; i < data.length; i += 4) {
+					const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+					data[i] = gray;     // red
+					data[i + 1] = gray; // green
+					data[i + 2] = gray; // blue
+				}
+
+				// 輝度調整を適用（ラッピング処理）
+				for (let i = 0; i < data.length; i += 4) {
+					let newGray = data[i] + brightnessAdjustment; // R, G, Bはすでにグレースケール値
+
+					// 255を超えたら-255を加え、0を下回ったら+255を加える（ラッピング）
+					if (newGray > 255) {
+						newGray -= 255;
+					} else if (newGray < 0) {
+						newGray += 255;
+					}
+					
+					data[i] = newGray;
+					data[i + 1] = newGray;
+					data[i + 2] = newGray;
+				}
+
+				// 新しい加工: 輝度を角度としてRGBにマッピング
+				for (let i = 0; i < data.length; i += 4) {
+					const currentGrayValue = data[i]; // グレースケール化と輝度調整後の輝度
+
+					// 輝度 (0-255) を角度 (0-360度) に変換
+					const angleDegrees = (currentGrayValue / 255) * 360;
+					const angleRadians = angleDegrees * Math.PI / 180;
+
+					// XY平面の単位ベクトルの成分を計算
+					const vectorX = Math.cos(angleRadians); // -1.0 to 1.0
+					const vectorY = Math.sin(angleRadians); // -1.0 to 1.0
+
+					// X成分をR、Y成分をGにマッピング (-1.0～1.0 を 0.0～1.0 に)
+					const rNormalized = (vectorX + 1.0) / 2.0;
+					const gNormalized = (vectorY + 1.0) / 2.0;
+					const bNormalized = 0.5; // Bは0.5で固定
+
+					// 0.0～1.0のRGB値を0～255に変換して設定
+					data[i] = rNormalized * 255;     // Red
+					data[i + 1] = gNormalized * 255; // Green
+					data[i + 2] = bNormalized * 255; // Blue
+					// data[i + 3] (Alpha) は変更しない
+				}
+
+				tempProcessingCtx.putImageData(imageData, 0, 0); // 最終的なImageDataを一時キャンバスに書き戻す
+
+				tempProcessingCtx.restore(); // 変換行列を元に戻す
+
+				return {
+					processedCanvas: tempProcessingCanvas,
+					finalWidth: rotatedBoundingWidth,
+					finalHeight: rotatedBoundingHeight
+				};
+			}
+
+			// 画像の基準となるサイズを計算するヘルパー関数
+			function calculateBaseDimensions(image, canvasWidth, canvasHeight) {
+				let baseWidth, baseHeight;
+				const imgAspectRatio = image.width / image.height;
+				const canvasAspectRatio = canvasWidth / canvasHeight;
+
+				if (imgAspectRatio > canvasAspectRatio) {
+					// 画像の方が横長の場合、幅を基準にフィットさせる
+					baseWidth = canvasWidth;
+					baseHeight = canvas.width / imgAspectRatio;
+				} else {
+					// 画像の方が縦長または正方形の場合、高さを基準にフィットさせる
+					baseHeight = canvas.height;
+					baseWidth = canvas.height * imgAspectRatio;
+				}
+				return { baseWidth, baseHeight };
+			}
+
+			/**
+			 * 現在のキャンバスの状態をスタックに保存する
+			 * @param {boolean} clearRedoStack - redoStackをクリアするかどうか (新しい操作の場合にtrue)
+			 */
+			function saveState(clearRedoStack = true) {
+				const currentState = placedImages.map(imgObj => ({
+					img: imgObj.img, // Imageオブジェクトの参照を保持
+					x: imgObj.x,
+					y: imgObj.y,
+					width: imgObj.width,
+					height: imgObj.height
+				}));
+
+				// undoStackの最後の状態を取得
+				const lastState = undoStack.length > 0 ? undoStack[undoStack.length - 1] : null;
+
+				// 現在の状態が最後の状態と完全に同じかどうかをチェック
+				let isDeepEqual = true;
+				if (lastState && lastState.length === currentState.length) {
+					for (let i = 0; i < lastState.length; i++) {
+						// 画像オブジェクトの参照と、位置・サイズを比較
+						if (lastState[i].img !== currentState[i].img ||
+							lastState[i].x !== currentState[i].x ||
+							lastState[i].y !== currentState[i].y ||
+							lastState[i].width !== currentState[i].width ||
+							lastState[i].height !== currentState[i].height) {
+							isDeepEqual = false;
+							break;
+						}
+					}
+				} else if (lastState || currentState.length > 0) {
+					// 長さが異なる場合、または片方がnull/空で他方がそうでない場合は異なる状態
+					isDeepEqual = false;
+				} else if (lastState === null && currentState.length === 0 && undoStack.length === 0) {
+					// アプリ起動時の最初の空の状態は必ずプッシュする
+					isDeepEqual = false;
+				}
+
+
+				if (!isDeepEqual) {
+					undoStack.push(currentState);
+					if (undoStack.length > maxStackSize) {
+						undoStack.shift(); // 古い状態を削除
+					}
+				}
+
+				if (clearRedoStack) {
+					redoStack.length = 0; // 新しい操作が行われたらredoスタックをクリア
+				}
+				updateUndoRedoButtons();
+				updateActionButtonsState(); // 状態変更後にボタンの状態を更新
+			}
+
+			/**
+			 * 指定された状態をキャンバスにロードする
+			 * @param {Array<Object>} state - ロードするplacedImagesの配列
+			 */
+			function loadState(state) {
+				placedImages = state.map(imgObj => ({
+					img: imgObj.img,
+					x: imgObj.x,
+					y: imgObj.y,
+					width: imgObj.width,
+					height: imgObj.height
+				}));
+				renderCanvas();
+				updateUndoRedoButtons();
+				updateActionButtonsState(); // 状態変更後にボタンの状態を更新
+			}
+
+			// アンドゥ操作
+			function undo() {
+				if (undoStack.length > 1) { // 少なくとも現在の状態とその前の状態がある場合
+					const currentState = undoStack.pop(); // 現在の状態をundoStackから取り出す
+					redoStack.push(currentState); // redoStackに現在の状態を保存
+					loadState(undoStack[undoStack.length - 1]); // undoStackの末尾（一つ前の状態）をロード
+				} else if (undoStack.length === 1 && placedImages.length > 0) { // undoStackに初期状態しかなく、かつplacedImagesに画像がある場合
+					redoStack.push(undoStack.pop()); // 現在の状態をredoStackに保存
+					placedImages = []; // placedImagesを空にする
+					renderCanvas();
+				}
+				updateUndoRedoButtons();
+				updateActionButtonsState(); // 状態変更後にボタンの状態を更新
+			}
+
+			// リドゥ操作
+			function redo() {
+				if (redoStack.length > 0) {
+					const nextState = redoStack.pop(); // redoStackから次の状態を取り出す
+					undoStack.push(nextState); // undoStackに次の状態を保存
+					loadState(nextState); // その状態をロード
+				}
+				updateUndoRedoButtons();
+				updateActionButtonsState(); // 状態変更後にボタンの状態を更新
+			}
+
+			// アンドゥ/リドゥボタンの有効/無効を更新
+			function updateUndoRedoButtons() {
+				// undoStackの長さが1以下の場合（初期状態のみ、または空の場合）は無効
+				undoButton.disabled = undoStack.length <= 1;
+				redoButton.disabled = redoStack.length === 0;
+			}
+
+			// アクションボタン（ランダム配置、画像を保存）の有効/無効を更新する関数
+			function updateActionButtonsState() {
+				randomPlaceButton.disabled = !currentImage; // 画像が選択されていない場合は無効
+				placeCenterButton.disabled = !currentImage; // 中央に配置ボタンも画像が選択されていない場合は無効
+				saveImageButton.disabled = placedImages.length === 0; // 配置された画像がない場合は無効
+			}
+
+
+			// ドラッグ開始時の処理
+			function startDrag(event) {
+				// `passive: false` を使用するため、ここで `preventDefault()` を呼び出す
+				// マウスイベントの場合、`event.button === 2` (右クリック) は `preventDefault()` しない
+				if (event.type.startsWith('touch')) {
+					event.preventDefault(); // タッチイベントでは常にデフォルト動作を防止
+				} else if (event.button === 2) {
+					return; // 右クリックは処理しない
+				}
+
+				if (!currentImage) return; // 画像が読み込まれていない場合は何もしない
+				
+				isDragging = true;
+				canvas.classList.add('dragging'); // カーソルスタイル変更
+				const coords = getCanvasCoordinates(event);
+
+				const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+
+				// ランダム倍率が有効な場合、新しいランダム値を生成
+				let scaleToUse = imageScale; // デフォルトはスライダーの値
+				if (randomScaleToggle.checked) {
+					currentRandomScaleValue = Math.random() * (maxRandomScale - minRandomScale) + minRandomScale;
+					scaleToUse = currentRandomScaleValue;
+				}
+
+				// スケール適用後の、回転前のサイズを計算
+				const scaledWidth = baseWidth * scaleToUse;
+				const scaledHeight = baseHeight * scaleToUse;
+
+				// ランダム輝度加算が有効な場合、新しいランダム値を生成
+				let brightnessToUse = brightnessValue; // デフォルトはスライダーの値
+				if (randomBrightnessToggle.checked) {
+					currentRandomBrightnessValue = Math.floor(Math.random() * 256); // 0～255の範囲でランダムな輝度値を生成
+					brightnessToUse = currentRandomBrightnessValue;
+				} else {
+					brightnessToUse = brightnessValue; // スライダーの値を使用
+				}
+
+				// ランダム回転が有効な場合、新しいランダム値を生成
+				let rotationAngleToUse = imageRotation; // デフォルトはスライダーの値
+				if (randomRotationToggle.checked) {
+					// -180から180の範囲でランダムな角度を生成
+					currentRandomRotationValue = Math.random() * 360 - 180;
+					rotationAngleToUse = currentRandomRotationValue;
+				} else {
+					rotationAngleToUse = imageRotation; // スライダーの値を使用
+				}
+
+
+				// 画像加工処理を実行し、drawnImageWidth/Heightを回転後のバウンディングボックスサイズで更新
+				const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+				drawnImageWidth = processedData.finalWidth;
+				drawnImageHeight = processedData.finalHeight;
+
+				// ドラッグ開始時のポインター位置を、画像の中心として設定
+				dragStartX = coords.x;
+				dragStartY = coords.y;
+
+				// 初期描画（ドラッグ開始点に画像を中央配置）
+				const initialX = dragStartX - (drawnImageWidth / 2);
+				const initialY = dragStartY - (drawnImageHeight / 2);
+				renderCanvas(initialX, initialY);
+
+				// グローバルイベントリスナーをアタッチ (passive: false を指定)
+				window.addEventListener('mousemove', drag);
+				canvas.addEventListener('touchmove', drag, { passive: false }); // canvas要素に直接アタッチ
+				window.addEventListener('mouseup', endDrag);
+				canvas.addEventListener('touchend', endDrag); // canvas要素に直接アタッチ
+			}
+
+			// ドラッグ中の処理
+			function drag(event) {
+				if (!isDragging) return;
+				// `passive: false` を使用するため、ここで `preventDefault()` を呼び出す
+				if (event.type.startsWith('touch')) {
+					event.preventDefault(); // タッチイベントでは常にデフォルト動作を防止
+				}
+
+				const coords = getCanvasCoordinates(event);
+				const currentMoveX = coords.x;
+				const currentMoveY = coords.y;
+
+				// 現在のポインター位置を画像の中心として、仮の描画位置を計算
+				const tempX = currentMoveX - (drawnImageWidth / 2);
+				const tempY = currentMoveY - (drawnImageHeight / 2);
+
+				renderCanvas(tempX, tempY); // 仮の座標で描画
+			}
+
+			// ドラッグ終了時の処理
+			function endDrag(event) {
+				if (!isDragging) return;
+				// `passive: false` を使用するため、ここで `preventDefault()` を呼び出す
+				if (event.type.startsWith('touch')) {
+					event.preventDefault(); // タッチイベントでは常にデフォルト動作を防止
+				}
+
+				isDragging = false;
+				canvas.classList.remove('dragging'); // カーソルスタイルを元に戻す
+
+				const coords = getCanvasCoordinates(event);
+				const endX = coords.x;
+				const endY = coords.y;
+
+				// 最終的な描画位置を計算（指を離した位置が画像の中心になるように）
+				const finalImageX = endX - (drawnImageWidth / 2);
+				const finalImageY = endY - (drawnImageHeight / 2);
+
+				let dataURL;
+				try {
+					dataURL = tempProcessingCanvas.toDataURL('image/png'); // フォーマットを明示
+				} catch (e) {
+					console.error("Error generating data URL from tempProcessingCanvas:", e);
+					showMessage('画像のデータ生成に失敗しました。');
+					// エラー時もリスナーを解除
+					window.removeEventListener('mousemove', drag);
+					canvas.removeEventListener('touchmove', drag, { passive: false });
+					window.removeEventListener('mouseup', endDrag);
+					canvas.removeEventListener('touchend', endDrag);
+					return;
+				}
+
+				if (!dataURL || dataURL === 'data:,') {
+					console.error("Generated empty or invalid data URL from tempProcessingCanvas.");
+					showMessage('画像のデータが空か無効です。');
+					// エラー時もリスナーを解除
+					window.removeEventListener('mousemove', drag);
+					canvas.removeEventListener('touchmove', drag, { passive: false });
+					window.removeEventListener('mouseup', endDrag);
+					canvas.removeEventListener('touchend', endDrag);
+					return;
+				}
+
+				const finalProcessedImage = new Image();
+				finalProcessedImage.onload = () => {
+					placedImages.push({
+						img: finalProcessedImage,
+						x: finalImageX,
+						y: finalImageY,
+						width: drawnImageWidth, // drawnImageWidth/Height は既に回転後のバウンディングボックスサイズ
+						height: drawnImageHeight
+					});
+					saveState(); // <--- ここで保存
+					renderCanvas(); // 最終的な描画結果を反映
+
+					// 画像がロードされ、処理が完了した後にリスナーを解除
+					window.removeEventListener('mousemove', drag);
+					canvas.removeEventListener('touchmove', drag, { passive: false });
+					window.removeEventListener('mouseup', endDrag);
+					canvas.removeEventListener('touchend', endDrag);
+				};
+				finalProcessedImage.onerror = (e) => {
+					console.error("finalProcessedImage.onerror fired:", e);
+					showMessage('最終画像の読み込みに失敗しました。詳細をコンソールで確認してください。');
+					// エラー時もリスナーを解除
+					window.removeEventListener('mousemove', drag);
+					canvas.removeEventListener('touchmove', drag, { passive: false });
+					window.removeEventListener('mouseup', endDrag);
+					canvas.removeEventListener('touchend', endDrag);
+				};
+				finalProcessedImage.src = dataURL; // ソースを設定
+			}
+
+			/**
+			 * 画像をキャンバスの中央に配置する処理
+			 */
+			function placeInCenter() {
+				if (!currentImage) {
+					showMessage('画像を読み込んでください。');
+					return;
+				}
+				if (isDragging) { // ドラッグ中は中央配置しない
+					return;
+				}
+
+				const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+
+				// ランダム倍率が有効な場合、新しいランダム値を生成
+				let scaleToUse = imageScale;
+				if (randomScaleToggle.checked) {
+					currentRandomScaleValue = Math.random() * (maxRandomScale - minRandomScale) + minRandomScale;
+					scaleToUse = currentRandomScaleValue;
+				}
+
+				// スケール適用後の、回転前のサイズを計算
+				const scaledWidth = baseWidth * scaleToUse;
+				const scaledHeight = baseHeight * scaleToUse;
+
+				// ランダム輝度加算が有効な場合、新しいランダム値を生成
+				let brightnessToUse = brightnessValue;
+				if (randomBrightnessToggle.checked) {
+					currentRandomBrightnessValue = Math.floor(Math.random() * 256); // 0～255の範囲でランダムな輝度値を生成
+					brightnessToUse = currentRandomBrightnessValue;
+				} else {
+					brightnessToUse = brightnessValue;
+				}
+
+				// ランダム回転が有効な場合、新しいランダム値を生成
+				let rotationAngleToUse = imageRotation;
+				if (randomRotationToggle.checked) {
+					// -180から180の範囲でランダムな角度を生成
+					currentRandomRotationValue = Math.random() * 360 - 180;
+					rotationAngleToUse = currentRandomRotationValue;
+				} else {
+					rotationAngleToUse = imageRotation;
+				}
+
+				// 画像加工処理を実行
+				const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+				const finalProcessedImage = new Image();
+				finalProcessedImage.onload = () => {
+					// キャンバスの中央に画像を配置するための座標を計算
+					const centerX = (canvas.width / 2) - (processedData.finalWidth / 2);
+					const centerY = (canvas.height / 2) - (processedData.finalHeight / 2);
+
+					placedImages.push({
+						img: finalProcessedImage,
+						x: centerX,
+						y: centerY,
+						width: processedData.finalWidth,
+						height: processedData.finalHeight
+					});
+					saveState(); // <--- ここで保存
+					renderCanvas();
+				};
+				finalProcessedImage.onerror = () => {
+					showMessage('中央配置画像の生成に失敗しました。');
+				};
+				finalProcessedImage.src = processedData.processedCanvas.toDataURL();
+			}
+
+
+			// ランダム配置ボタンの処理
+			function placeRandomly() {
+				if (!currentImage) {
+					showMessage('画像を読み込んでください。');
+					return;
+				}
+				if (isDragging) { // ドラッグ中はランダム配置しない
+					return;
+				}
+
+				const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+
+				// ランダム倍率が有効な場合、新しいランダム値を生成
+				let scaleToUse = imageScale;
+				if (randomScaleToggle.checked) {
+					currentRandomScaleValue = Math.random() * (maxRandomScale - minRandomScale) + minRandomScale;
+					scaleToUse = currentRandomScaleValue;
+				}
+
+				// スケール適用後の、回転前のサイズを計算
+				const scaledWidth = baseWidth * scaleToUse;
+				const scaledHeight = baseHeight * scaleToUse;
+
+				// ランダム輝度加算が有効な場合、新しいランダム値を生成
+				let brightnessToUse = brightnessValue;
+				if (randomBrightnessToggle.checked) {
+					currentRandomBrightnessValue = Math.floor(Math.random() * 256); // 0～255の範囲でランダムな輝度値を生成
+					brightnessToUse = currentRandomBrightnessValue;
+				} else {
+					brightnessToUse = brightnessValue;
+				}
+
+				// ランダム回転が有効な場合、新しいランダム値を生成
+				let rotationAngleToUse = imageRotation;
+				if (randomRotationToggle.checked) {
+					// -180から180の範囲でランダムな角度を生成
+					currentRandomRotationValue = Math.random() * 360 - 180;
+					rotationAngleToUse = currentRandomRotationValue;
+				} else {
+					rotationAngleToUse = imageRotation;
+				}
+
+				// 画像加工処理を実行
+				const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+				const finalProcessedImage = new Image();
+				finalProcessedImage.onload = () => {
+					placedImages.push({
+						img: finalProcessedImage,
+	//                    x: Math.random() * (canvas.width - processedData.finalWidth), // ランダムなX座標 (左上隅)
+	//                    y: Math.random() * (canvas.height - processedData.finalHeight), // ランダムなY座標 (左上隅)
+						x: Math.random() * canvas.width, // ランダムなX座標 (左上隅)
+						y: Math.random() * canvas.height, // ランダムなY座標 (左上隅)
+						width: processedData.finalWidth,
+						height: processedData.finalHeight
+					});
+					saveState(); // <--- ここで保存
+					renderCanvas();
+				};
+				finalProcessedImage.onerror = () => {
+					showMessage('ランダム配置画像の生成に失敗しました。');
+				};
+				finalProcessedImage.src = processedData.processedCanvas.toDataURL();
+			}
+
+			// ランダム倍率スライダーの有効/無効を更新する関数
+			function updateScaleSliderStates() {
+				const isRandomScaleEnabled = randomScaleToggle.checked;
+
+				// 描画倍率スライダーの有効/無効を切り替える
+				imageScaleInput.disabled = isRandomScaleEnabled;
+				// imageScaleContainer内のcontrol-buttonも無効化
+				imageScaleContainer.querySelectorAll('.control-button').forEach(button => {
+					button.disabled = isRandomScaleEnabled;
+				});
+
+				if (isRandomScaleEnabled) {
+					imageScaleContainer.classList.add('disabled-slider-container');
+				} else {
+					imageScaleContainer.classList.remove('disabled-slider-container');
+				}
+
+				// 最小/最大ランダム倍率スライダーの有効/無効を切り替える
+				minRandomScaleInput.disabled = !isRandomScaleEnabled;
+				maxRandomScaleInput.disabled = !isRandomScaleEnabled;
+				// minRandomScaleContainer内のcontrol-buttonも無効化
+				minRandomScaleContainer.querySelectorAll('.control-button').forEach(button => {
+					button.disabled = !isRandomScaleEnabled;
+				});
+				// maxRandomScaleContainer内のcontrol-buttonも無効化
+				maxRandomScaleContainer.querySelectorAll('.control-button').forEach(button => {
+					button.disabled = !isRandomScaleEnabled;
+				});
+
+				if (!isRandomScaleEnabled) {
+					minRandomScaleContainer.classList.add('disabled-slider-container');
+					maxRandomScaleContainer.classList.add('disabled-slider-container');
+				} else {
+					minRandomScaleContainer.classList.remove('disabled-slider-container');
+					maxRandomScaleContainer.classList.remove('disabled-slider-container');
+				}
+			}
+
+			// ランダム回転スライダーの有効/無効を更新する関数
+			function updateRotationSliderStates() {
+				const isRandomRotationEnabled = randomRotationToggle.checked;
+
+				// 回転角度スライダーの有効/無効を切り替える
+				imageRotationInput.disabled = isRandomRotationEnabled;
+				// imageRotationContainer内のcontrol-buttonも無効化
+				imageRotationContainer.querySelectorAll('.control-button').forEach(button => {
+					button.disabled = isRandomRotationEnabled;
+				});
+
+				if (isRandomRotationEnabled) {
+					imageRotationContainer.classList.add('disabled-slider-container');
+				} else {
+					imageRotationContainer.classList.remove('disabled-slider-container');
+				}
+			}
+
+			// 輝度調整スライダーの有効/無効を更新する関数
+			function updateBrightnessSliderStates() {
+				const isRandomBrightnessEnabled = randomBrightnessToggle.checked;
+
+				// 輝度調整スライダーの有効/無効を切り替える
+				brightnessInput.disabled = isRandomBrightnessEnabled;
+				// brightnessContainer内のcontrol-buttonも無効化
+				brightnessContainer.querySelectorAll('.control-button').forEach(button => {
+					button.disabled = isRandomBrightnessEnabled;
+				});
+
+				if (isRandomBrightnessEnabled) {
+					brightnessContainer.classList.add('disabled-slider-container');
+				} else {
+					brightnessContainer.classList.remove('disabled-slider-container');
+				}
+			}
+
+			// 補間方法の有効/無効を更新する関数
+			function updateInterpolationMethodStates() {
+				const selectedMethod = interpolationMethodSelect.value;
+				ctx.imageSmoothingEnabled = (selectedMethod === 'linear');
+				tempProcessingCtx.imageSmoothingEnabled = (selectedMethod === 'linear');
+			}
+
+			// Android版Firefoxかどうかを判定する関数
+			function isAndroidFirefox() {
+				return navigator.userAgent.includes('Firefox') && navigator.userAgent.includes('Android');
+			}
+
+			// タブ切り替え関数
+			function switchTab(activeTabId) {
+				tabButtons.forEach(button => {
+					if (button.dataset.tab === activeTabId) {
+						button.classList.add('active');
+					} else {
+						button.classList.remove('active');
+					}
+				});
+
+				tabContents.forEach(content => {
+					if (content.id === `${activeTabId}-tab-content`) {
+						content.classList.add('active');
+					} else {
+						content.classList.remove('active');
+					}
+				});
+			}
+
+
+			// 初期キャンバスサイズを設定
+			setCanvasSize(parseInt(canvasSizeSelect.value)); // 初回ロード時にも背景色で初期化
+			renderCanvas(); // ★ここを修正：初回ロード時にキャンバスを明示的に描画
+			saveState(); // 初期状態を保存
+
+			// 初期ロード時にスライダーと補間方法、ボタンの状態を更新
+			updateScaleSliderStates();
+			updateRotationSliderStates();
+			updateBrightnessSliderStates(); // 新しく追加
+			updateInterpolationMethodStates();
+			updateActionButtonsState(); // 初期ボタン状態を更新
+
+
+			// キャンバスサイズ選択が変更されたときのイベントリスナー
+			canvasSizeSelect.addEventListener('change', (event) => {
+				const newSize = parseInt(event.target.value);
+				canvas.width = newSize; // キャンバスの幅を更新
+				canvas.height = newSize; // キャンバスの高さを更新
+				placedImages = []; // 既存の画像をクリア
+				renderCanvas(); // 既存の画像と新しい背景で再描画
+				saveState(); // サイズ変更後の状態を保存
+			});
+
+			// 画像描画倍率スライダーが変更されたときのイベントリスナー
+			imageScaleInput.addEventListener('input', (event) => {
+				imageScale = parseFloat(event.target.value);
+				imageScaleValueDisplay.textContent = imageScale.toFixed(2); // 表示を更新
+				// ランダム倍率がオフの場合のみ処理
+				if (currentImage && isDragging && !randomScaleToggle.checked) {
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					const scaledWidth = baseWidth * imageScale;
+					const scaledHeight = baseHeight * imageScale;
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						rotationAngleToUse = currentRandomRotationValue;
+					}
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						brightnessToUse = currentRandomBrightnessValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// 画像回転角度スライダーが変更されたときのイベントリスナー
+			imageRotationInput.addEventListener('input', (event) => {
+				imageRotation = parseFloat(event.target.value);
+				imageRotationValueDisplay.textContent = imageRotation.toFixed(0) + '°'; // 表示を更新
+				// ランダム回転がオフの場合のみ処理
+				if (currentImage && isDragging && !randomRotationToggle.checked) {
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					
+					let scaleToUse = imageScale;
+					if (randomScaleToggle.checked) {
+						scaleToUse = currentRandomScaleValue;
+					}
+					const scaledWidth = baseWidth * scaleToUse;
+					const scaledHeight = baseHeight * scaleToUse;
+
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						brightnessToUse = currentRandomBrightnessValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, imageRotation, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// ランダム輝度加算チェックボックスが変更されたときのイベントリスナー
+			randomBrightnessToggle.addEventListener('change', (event) => {
+				updateBrightnessSliderStates(); // スライダーの表示状態を更新
+				if (currentImage && isDragging) { // ドラッグ中であればリアルタイムで更新
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					
+					let scaleToUse = imageScale;
+					if (randomScaleToggle.checked) {
+						scaleToUse = currentRandomScaleValue;
+					}
+					const scaledWidth = baseWidth * scaleToUse;
+					const scaledHeight = baseHeight * scaleToUse;
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						rotationAngleToUse = currentRandomRotationValue;
+					}
+
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						currentRandomBrightnessValue = Math.floor(Math.random() * 256); // 0～255の範囲でランダムな輝度値を生成
+						brightnessToUse = currentRandomBrightnessValue;
+					} else {
+						brightnessToUse = brightnessValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// 輝度調整スライダーが変更されたときのイベントリスナー
+			brightnessInput.addEventListener('input', (event) => {
+				brightnessValue = parseInt(event.target.value);
+				brightnessValueDisplay.textContent = brightnessValue.toFixed(0); // 表示を更新
+				// ランダム輝度加算がオフの場合のみ処理
+				if (currentImage && isDragging && !randomBrightnessToggle.checked) {
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					
+					let scaleToUse = imageScale;
+					if (randomScaleToggle.checked) {
+						scaleToUse = currentRandomScaleValue;
+					}
+					const scaledWidth = baseWidth * scaleToUse;
+					const scaledHeight = baseHeight * scaleToUse;
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						rotationAngleToUse = currentRandomRotationValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessValue); // brightnessValueを直接使用
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+
+			// ランダム回転チェックボックスが変更されたときのイベントリスナー
+			randomRotationToggle.addEventListener('change', (event) => {
+				updateRotationSliderStates(); // スライダーの表示状態を更新
+				if (currentImage && isDragging) { // ドラッグ中であればリアルタイムで更新
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					
+					let scaleToUse = imageScale;
+					if (randomScaleToggle.checked) {
+						scaleToUse = currentRandomScaleValue;
+					}
+					const scaledWidth = baseWidth * scaleToUse;
+					const scaledHeight = baseHeight * scaleToUse;
+
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						brightnessToUse = currentRandomBrightnessValue;
+					}
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						currentRandomRotationValue = Math.random() * 360 - 180; // -180から180の範囲
+						rotationAngleToUse = currentRandomRotationValue;
+					} else {
+						rotationAngleToUse = imageRotation;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// ランダム倍率チェックボックスが変更されたときのイベントリスナー
+			randomScaleToggle.addEventListener('change', (event) => {
+				updateScaleSliderStates(); // スライダーの表示状態を更新
+				if (currentImage && isDragging) { // ドラッグ中であればリアルタイムで更新
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					
+					let scaleToUse = imageScale;
+					if (randomScaleToggle.checked) {
+						currentRandomScaleValue = Math.random() * (maxRandomScale - minRandomScale) + minRandomScale;
+						scaleToUse = currentRandomScaleValue;
+					} else {
+						scaleToUse = imageScale;
+					}
+					const scaledWidth = baseWidth * scaleToUse;
+					const scaledHeight = baseHeight * scaleToUse;
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						rotationAngleToUse = currentRandomRotationValue;
+					}
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						brightnessToUse = currentRandomBrightnessValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// 最小ランダム倍率スライダーが変更されたときのイベントリスナー
+			minRandomScaleInput.addEventListener('input', (event) => {
+				minRandomScale = parseFloat(event.target.value);
+				// 最小値が最大値を超えないように調整
+				if (minRandomScale > maxRandomScale) {
+					minRandomScale = maxRandomScale;
+					minRandomScaleInput.value = maxRandomScale;
+				}
+				minRandomScaleValueDisplay.textContent = minRandomScale.toFixed(2);
+				// ランダム倍率がオンの場合のみ処理
+				if (currentImage && isDragging && randomScaleToggle.checked) {
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					currentRandomScaleValue = Math.random() * (maxRandomScale - minRandomScale) + minRandomScale;
+					const scaledWidth = baseWidth * currentRandomScaleValue;
+					const scaledHeight = baseHeight * currentRandomScaleValue;
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						rotationAngleToUse = currentRandomRotationValue;
+					}
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						brightnessToUse = currentRandomBrightnessValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// 最大ランダム倍率スライダーが変更されたときのイベントリスナー
+			maxRandomScaleInput.addEventListener('input', (event) => {
+				maxRandomScale = parseFloat(event.target.value);
+				// 最大値が最小値を下回らないように調整
+				if (maxRandomScale < minRandomScale) {
+					maxRandomScale = minRandomScale;
+					maxRandomScaleInput.value = minRandomScale;
+				}
+				maxRandomScaleValueDisplay.textContent = maxRandomScale.toFixed(2);
+				// ランダム倍率がオンの場合のみ処理
+				if (currentImage && isDragging && randomScaleToggle.checked) {
+					const { baseWidth, baseHeight } = calculateBaseDimensions(currentImage, canvas.width, canvas.height);
+					currentRandomScaleValue = Math.random() * (maxRandomScale - minRandomScale) + minRandomScale;
+					const scaledWidth = baseWidth * currentRandomScaleValue;
+					const scaledHeight = baseHeight * currentRandomScaleValue;
+
+					let rotationAngleToUse = imageRotation;
+					if (randomRotationToggle.checked) {
+						rotationAngleToUse = currentRandomRotationValue;
+					}
+					let brightnessToUse = brightnessValue;
+					if (randomBrightnessToggle.checked) {
+						brightnessToUse = currentRandomBrightnessValue;
+					}
+
+					const processedData = getProcessedImageAndDimensions(currentImage, scaledWidth, scaledHeight, rotationAngleToUse, brightnessToUse);
+					drawnImageWidth = processedData.finalWidth;
+					drawnImageHeight = processedData.finalHeight;
+
+					const coords = getCanvasCoordinates(event);
+					const tempX = coords.x - (drawnImageWidth / 2);
+					const tempY = coords.y - (drawnImageHeight / 2);
+					renderCanvas(tempX, tempY);
+				}
+			});
+
+			// 補間方法選択が変更されたときのイベントリスナー
+			interpolationMethodSelect.addEventListener('change', (event) => {
+				updateInterpolationMethodStates(); // 補間方法を更新
+				renderCanvas(); // キャンバス全体を再描画して変更を反映
+			});
+
+
+			// 画像が選択されたときのイベントリスナー
+			imageInput.addEventListener('change', (event) => {
+				const file = event.target.files[0];
+				if (file) {
+					const reader = new FileReader();
+
+					reader.onload = (e) => {
+						const img = new Image();
+						img.onload = () => {
+							currentImage = img; // 元のカラー画像をcurrentImageとして設定
+							updateActionButtonsState(); // ボタンの状態を更新
+						};
+						img.onerror = () => {
+							showMessage('画像の読み込みに失敗しました。');
+							currentImage = null; // エラー時はcurrentImageをクリア
+							updateActionButtonsState(); // ボタンの状態を更新
+						};
+						img.src = e.target.result;
+					};
+
+					reader.onerror = () => {
+						showMessage('ファイルの読み込みに失敗しました。');
+						currentImage = null; // エラー時はcurrentImageをクリア
+						updateActionButtonsState(); // ボタンの状態を更新
+					};
+					reader.readAsDataURL(file);
+				} else {
+					currentImage = null; // ファイルが選択されていない場合はcurrentImageをクリア
+					updateActionButtonsState(); // ボタンの状態を更新
+				}
+			});
+
+			// ドラッグ開始イベントはキャンバスにアタッチ (passive: false を指定)
+			canvas.addEventListener('mousedown', startDrag);
+			canvas.addEventListener('touchstart', startDrag, { passive: false }); // ここに passive: false
+
+			// ランダム配置ボタンのイベントリスナー
+			randomPlaceButton.addEventListener('click', placeRandomly);
+
+			// 中央に配置ボタンのイベントリスナー
+			placeCenterButton.addEventListener('click', placeInCenter);
+
+			// 画像を保存ボタンのイベントリスナー
+			saveImageButton.addEventListener('click', () => {
+				const dataURL = canvas.toDataURL('image/png');
+				if (!dataURL || dataURL === 'data:,') {
+					showMessage('画像を生成できませんでした。');
+					return;
+				}
+
+				if (isAndroidFirefox()) {
+					showConfirm(
+						'画像を新しいタブで表示します。新しいタブで画像を長押し（または右クリック）して保存してください。続行しますか？',
+						() => {
+							window.open(dataURL, '_blank');
+						},
+						() => {
+							// ユーザーがキャンセルした場合、何もしない
+						}
+					);
+				} else {
+					// Android版Google Chromeを含む、その他のブラウザでは直接ダウンロードを試みる
+					const link = document.createElement('a');
+					link.href = dataURL;
+					link.download = 'my_image_loader_canvas.png';
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+				}
+			});
+
+			// キャンバス初期化ボタンのイベントリスナー
+			initializeCanvasButton.addEventListener('click', () => {
+				// 初期化前の状態を保存
+				saveState(); 
+				placedImages = []; // 配置済みの画像をクリア
+				renderCanvas(); // キャンバスをクリアし、背景色で再描画
+				// クリア後の状態を保存（重複防止はsaveState内で処理される）
+				saveState();
+			});
+
+			// アンドゥ/リドゥボタンのイベントリスナー
+			undoButton.addEventListener('click', undo);
+			redoButton.addEventListener('click', redo);
+
+			// タブボタンにイベントリスナーを追加
+			tabButtons.forEach(button => {
+				button.addEventListener('click', () => {
+					switchTab(button.dataset.tab);
+				});
+			});
+
+			// スライダーコントロールボタンのイベントリスナー
+			controlButtons.forEach(button => {
+				button.addEventListener('click', (event) => {
+					const targetId = event.target.dataset.target;
+					const action = event.target.dataset.action;
+					const slider = document.getElementById(targetId);
+
+					if (slider) {
+						let currentValue = parseFloat(slider.value);
+						const step = parseFloat(slider.step);
+						const min = parseFloat(slider.min);
+						const max = parseFloat(slider.max);
+						let newValue;
+
+						if (action === 'increment') {
+							newValue = currentValue + step;
+						} else if (action === 'decrement') {
+							newValue = currentValue - step;
+						}
+
+						// 範囲内にクランプ
+						newValue = Math.max(min, Math.min(max, newValue));
+						
+						// 浮動小数点数の精度問題を回避するためにtoFixedを使用
+						if (step < 1) { // 小数点以下のステップの場合
+							slider.value = newValue.toFixed(2); 
+						} else { // 整数ステップの場合
+							slider.value = Math.round(newValue);
+						}
+
+						// スライダーのinputイベントを手動でトリガーして、関連する表示と描画を更新
+						const inputEvent = new Event('input', { bubbles: true });
+						slider.dispatchEvent(inputEvent);
+					}
+				});
+			});
+
+
+			// 初期表示タブを設定
+			switchTab('scale');
+
+			// ウィンドウのリサイズ時にキャンバスを再設定 (内部解像度は変更しない)
+			// CSSによる伸縮はブラウザが自動で行うため、ここではcanvas.width/heightは変更しない
+			// renderCanvas() も不要。
+			// window.addEventListener('resize', () => {
+			//     renderCanvas(); // 既存の画像と新しい背景で再描画 (不要な場合が多い)
+			// });
+		</script>
+	</div>
+</body>
+</html>

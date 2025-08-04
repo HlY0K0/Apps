@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loop Voronoi Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* 白基調の背景色 */
+            color: #2d3748; /* 暗いテキスト色 */
+        }
+        .container {
+            max-width: 1200px;
+        }
+        /* キャンバスコンテナのサイズを固定し、内部のキャンバスを拡大・縮小表示 */
+        #canvasContainer {
+            position: relative;
+            width: 512px;
+            height: 512px;
+            border: 2px solid #e2e8f0;
+            background-color: #fff;
+        }
+        #voronoiCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated; /* ピクセルアート風の表示 */
+        }
+        /* ラベルとセレクトボックスを別の行に配置 */
+        .control-group.block {
+            display: block;
+        }
+        .control-group.block .label-wrapper {
+            margin-bottom: 0.5rem;
+        }
+        .control-group.block select {
+            width: 100%;
+        }
+        /* レンジ入力のスタイル */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+            border-radius: 9999px;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4299e1;
+            cursor: pointer;
+            border-radius: 9999px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4299e1;
+            cursor: pointer;
+            border-radius: 9999px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="p-0 flex flex-col min-h-screen">
+    <!-- ヘッダー -->
+    <header class="w-full bg-white shadow-md py-4 px-6 md:px-8">
+        <div class="container mx-auto">
+		  <a href="https://hly0k0.github.io/Apps/index.html" class="text-blue-600 hover:text-blue-800 font-semibold transition-colors duration-200">
+			<h1 class="text-2xl font-bold text-blue-600">HIYOKO's Apps</h1>
+		  </a>
+        </div>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
+        <div class="container mx-auto p-6 bg-gray-100 rounded-2xl shadow-xl">
+            <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Loop Voronoi Creator</h1>
+            <p class="text-center text-gray-600 mb-8">リピート可能なボロノイ図を生成します。</p>
+
+            <div class="flex flex-col md:flex-row justify-center items-center md:items-start space-y-8 md:space-y-0 md:space-x-8">
+                <!-- 設定パネル: md以上の画面では固定幅 (w-80) にする -->
+                <div class="w-full md:w-80 p-6 bg-white rounded-xl shadow-lg space-y-4">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">設定</h2>
+
+                    <!-- ブロックレベルのコントロールグループ -->
+                    <div class="control-group block">
+                        <label for="sizeSelect" class="label-wrapper block text-gray-700 font-medium">画面サイズ:</label>
+                        <select id="sizeSelect" class="p-2 rounded-lg bg-gray-200 text-gray-800 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="128">128x128</option>
+                            <option value="256">256x256</option>
+                            <option value="512" selected>512x512</option>
+                            <option value="1024">1024x1024</option>
+                            <option value="2048">2048x2048</option>
+                        </select>
+                    </div>
+
+                    <!-- ブロックレベルのコントロールグループ -->
+                    <div class="control-group block">
+                        <label for="colorSelect" class="label-wrapper block text-gray-700 font-medium">色モード:</label>
+                        <select id="colorSelect" class="p-2 rounded-lg bg-gray-200 text-gray-800 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="random">ランダムカラー</option>
+                            <option value="grayscale">ランダムなグレースケール</option>
+                            <option value="distance">セル境界までの距離</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="densityInput" class="block text-gray-700 font-medium mb-2">セルの密度:</label>
+                        <input type="range" id="densityInput" min="5" max="100" value="25" class="w-full">
+                        <div class="text-right text-sm text-gray-500 mt-1" id="densityValue">25</div>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="jitterInput" class="block text-gray-700 font-medium mb-2">ランダム性の強さ:</label>
+                        <input type="range" id="jitterInput" min="0" max="100" value="100" class="w-full">
+                        <div class="text-right text-sm text-gray-500 mt-1" id="jitterValue">100</div>
+                    </div>
+
+                    <button id="drawButton" class="w-full p-3 mt-4 text-center font-bold text-white bg-blue-600 rounded-lg shadow-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                        描画
+                    </button>
+                    
+                    <button id="saveButton" class="w-full p-3 mt-2 text-center font-bold text-white bg-green-600 rounded-lg shadow-lg hover:bg-green-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                        画像を保存
+                    </button>
+
+                    <!-- 進捗表示エリア -->
+                    <div id="progressArea" class="mt-4 hidden">
+                        <div class="text-center text-gray-600 mb-2" id="progressText">0%</div>
+                        <div class="w-full bg-gray-300 rounded-full h-2.5">
+                            <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-100 ease-linear" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- キャンバスコンテナ -->
+                <div id="canvasContainer" class="rounded-lg shadow-lg">
+                    <canvas id="voronoiCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM要素の取得
+            const canvas = document.getElementById('voronoiCanvas');
+            const ctx = canvas.getContext('2d');
+            const sizeSelect = document.getElementById('sizeSelect');
+            const colorSelect = document.getElementById('colorSelect');
+            const densityInput = document.getElementById('densityInput');
+            const densityValueSpan = document.getElementById('densityValue');
+            const jitterInput = document.getElementById('jitterInput');
+            const jitterValueSpan = document.getElementById('jitterValue');
+            const drawButton = document.getElementById('drawButton');
+            const saveButton = document.getElementById('saveButton');
+            const progressArea = document.getElementById('progressArea');
+            const progressText = document.getElementById('progressText');
+            const progressBar = document.getElementById('progressBar');
+
+            let isDrawing = false; // 描画中フラグ
+            let points = null; // 母点データをキャッシュする変数
+            let grid = null;   // グリッドデータをキャッシュする変数
+            let seedOffset = 0; // 色のシードに加算するオフセット
+
+            // 密度表示の更新
+            densityInput.addEventListener('input', () => {
+                densityValueSpan.textContent = densityInput.value;
+            });
+            
+            // ランダム性の強さ表示の更新
+            jitterInput.addEventListener('input', () => {
+                jitterValueSpan.textContent = jitterInput.value;
+            });
+
+            /**
+             * 座標から決定論的な色を生成する関数
+             * @param {number} x - X座標
+             * @param {number} y - Y座標
+             * @returns {{r: number, g: number, b: number, gray: number}} - 生成されたRGB色とグレースケール値
+             */
+            const generateSeededColor = (x, y) => {
+                // 位置とオフセットを組み合わせたシード
+                const seed = Math.floor(x * 12345 + y * 67890 + seedOffset);
+                const rand1 = Math.sin(seed) * 10000;
+                const rand2 = Math.sin(seed + 1) * 10000;
+                const rand3 = Math.sin(seed + 2) * 10000;
+                const rand4 = Math.sin(seed + 3) * 10000;
+
+                const r = Math.abs(Math.floor(rand1 % 256));
+                const g = Math.abs(Math.floor(rand2 % 256));
+                const b = Math.abs(Math.floor(rand3 % 256));
+                const gray = Math.abs(Math.floor(rand4 % 256));
+
+                return { r, g, b, gray };
+            };
+            
+            // 実際の描画処理を行う関数
+            const drawPixels = async (size, colorMode) => {
+                if (!points || !grid) {
+                    console.error("母点またはグリッドデータがありません。");
+                    return;
+                }
+
+                const imageData = ctx.createImageData(size, size);
+                const data = imageData.data;
+                const totalPixels = size * size;
+                const chunkSize = 10000;
+
+                const numCells = grid.length;
+                const gridCellSize = size / numCells;
+
+                for (let i = 0; i < totalPixels; i++) {
+                    const x = i % size;
+                    const y = Math.floor(i / size);
+
+                    const gx = Math.floor(x / gridCellSize);
+                    const gy = Math.floor(y / gridCellSize);
+
+                    let closestPoint = null;
+                    let minDistanceSq = Infinity;
+                    let secondClosestDistanceSq = Infinity;
+
+                    // 探索対象のグリッドセルを定義 (5x5の範囲)
+                    for (let sy = -2; sy <= 2; sy++) {
+                        for (let sx = -2; sx <= 2; sx++) {
+                            const searchGx = (gx + sx + numCells) % numCells;
+                            const searchGy = (gy + sy + numCells) % numCells;
+
+                            for (const p of grid[searchGy][searchGx]) {
+                                // ゴースト母点の計算
+                                for (let dy_ghost = -1; dy_ghost <= 1; dy_ghost++) {
+                                    for (let dx_ghost = -1; dx_ghost <= 1; dx_ghost++) {
+                                        const ghostX = p.x + dx_ghost * size;
+                                        const ghostY = p.y + dy_ghost * size;
+
+                                        const dx = x - ghostX;
+                                        const dy = y - ghostY;
+                                        const distanceSq = dx * dx + dy * dy;
+
+                                        if (distanceSq < minDistanceSq) {
+                                            secondClosestDistanceSq = minDistanceSq;
+                                            minDistanceSq = distanceSq;
+                                            closestPoint = p;
+                                        } else if (distanceSq < secondClosestDistanceSq) {
+                                            secondClosestDistanceSq = distanceSq;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (closestPoint === null) {
+                        const index = i * 4;
+                        data[index] = 0;
+                        data[index + 1] = 0;
+                        data[index + 2] = 0;
+                        data[index + 3] = 255;
+                        continue;
+                    }
+
+                    const index = i * 4;
+                    if (colorMode === 'random') {
+                        data[index] = closestPoint.color.r;
+                        data[index + 1] = closestPoint.color.g;
+                        data[index + 2] = closestPoint.color.b;
+                        data[index + 3] = 255;
+                    } else if (colorMode === 'grayscale') {
+                        const grayValue = closestPoint.color.gray;
+                        data[index] = grayValue;
+                        data[index + 1] = grayValue;
+                        data[index + 2] = grayValue;
+                        data[index + 3] = 255;
+                    } else { // 'distance'
+                        const dist1 = Math.sqrt(minDistanceSq);
+                        const dist2 = Math.sqrt(secondClosestDistanceSq);
+                        const ratio = dist1 / (dist1 + dist2);
+                        // 明るさを2倍にして調整
+                        const grayValue = Math.min(255, Math.floor(ratio * 255 * 2));
+
+                        data[index] = grayValue;
+                        data[index + 1] = grayValue;
+                        data[index + 2] = grayValue;
+                        data[index + 3] = 255;
+                    }
+                    
+                    if (i % chunkSize === 0 || i === totalPixels - 1) {
+                        const progress = Math.floor((i / totalPixels) * 100);
+                        progressText.textContent = `${progress}%`;
+                        progressBar.style.width = `${progress}%`;
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                    }
+                }
+                
+                ctx.putImageData(imageData, 0, 0);
+            };
+
+            // 母点の生成と描画を行うメイン関数
+            const generateAndDrawVoronoi = async () => {
+                if (isDrawing) return;
+                isDrawing = true;
+                drawButton.disabled = true;
+                saveButton.disabled = true;
+                drawButton.textContent = '描画中...';
+                progressArea.classList.remove('hidden');
+
+                const size = parseInt(sizeSelect.value, 10);
+                const colorMode = colorSelect.value;
+                const density = parseInt(densityInput.value, 10);
+                
+                // ランダム性の強さの値を非線形に変換し、さらに1.5倍に拡大
+                const jitterStrength = Math.sqrt(parseFloat(jitterInput.value) / 100) * 1.5;
+                
+                // 描画ボタンが押されるたびに新しいシードオフセットを生成
+                seedOffset = new Date().getTime();
+
+                canvas.width = size;
+                canvas.height = size;
+                ctx.clearRect(0, 0, size, size);
+
+                points = []; // 新しい母点データを生成
+                // 格子状の母点グリッドを計算し、常に偶数になるように調整
+                let cellCount = Math.ceil(Math.sqrt(density));
+                if (cellCount % 2 !== 0) {
+                    cellCount++;
+                }
+                const spacing = size / cellCount;
+                
+                for (let y = 0; y < cellCount; y++) {
+                    for (let x = 0; x < cellCount; x++) {
+                        const baseX = x * spacing + spacing / 2;
+                        const baseY = y * spacing + spacing / 2;
+
+                        const offsetX = (Math.random() - 0.5) * spacing * jitterStrength;
+                        const offsetY = (Math.random() - 0.5) * spacing * jitterStrength;
+                        
+                        points.push({
+                            x: baseX + offsetX,
+                            y: baseY + offsetY,
+                            color: generateSeededColor(baseX + offsetX, baseY + offsetY)
+                        });
+                    }
+                }
+                
+                // グリッドのセットアップ (パフォーマンス改善のため)
+                const numCells = Math.max(1, Math.floor(Math.sqrt(points.length) * 1.5));
+                const gridCellSize = size / numCells;
+                grid = Array.from({ length: numCells }, () => Array.from({ length: numCells }, () => [])); // 新しいグリッドを生成
+
+                // 母点をグリッドに格納
+                for (const p of points) {
+                    const gx = Math.floor(p.x / gridCellSize);
+                    const gy = Math.floor(p.y / gridCellSize);
+                    if (gx >= 0 && gx < numCells && gy >= 0 && gy < numCells) {
+                        grid[gy][gx].push(p);
+                    }
+                }
+
+                await drawPixels(size, colorMode);
+                
+                isDrawing = false;
+                drawButton.disabled = false;
+                saveButton.disabled = false;
+                drawButton.textContent = '描画';
+                progressArea.classList.add('hidden');
+            };
+
+            // キャッシュされた母点データを使って再描画する関数
+            const redrawWithCachedPoints = async () => {
+                if (isDrawing || !points || !grid) {
+                    // 描画中またはデータがキャッシュされていない場合は何もしない
+                    return;
+                }
+                const size = parseInt(sizeSelect.value, 10);
+                const colorMode = colorSelect.value;
+                
+                isDrawing = true;
+                drawButton.disabled = true;
+                saveButton.disabled = true;
+                drawButton.textContent = '再描画中...';
+                progressArea.classList.remove('hidden');
+
+                await drawPixels(size, colorMode);
+
+                isDrawing = false;
+                drawButton.disabled = false;
+                saveButton.disabled = false;
+                drawButton.textContent = '描画';
+                progressArea.classList.add('hidden');
+            };
+
+            saveButton.addEventListener('click', () => {
+                const dataURL = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = dataURL;
+                link.download = 'voronoi.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+            // イベントリスナーの設定
+            drawButton.addEventListener('click', generateAndDrawVoronoi);
+            colorSelect.addEventListener('change', redrawWithCachedPoints);
+
+            // 初期描画
+            generateAndDrawVoronoi();
+        });
+    </script>
+</body>
+</html>
