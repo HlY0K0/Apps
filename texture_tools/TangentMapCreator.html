@@ -589,7 +589,7 @@
 					const angleRadians = angleDegrees * Math.PI / 180;
 
 					// XY平面の単位ベクトルの成分を計算
-					const vectorX = Math.cos(angleRadians); // -1.0 to 1.0
+					const vectorX = - Math.cos(angleRadians); // -1.0 to 1.0 HLSLの左手系に合わせるためにX軸は反転
 					const vectorY = Math.sin(angleRadians); // -1.0 to 1.0
 
 					// X成分をR、Y成分をGにマッピング (-1.0～1.0 を 0.0～1.0 に)
